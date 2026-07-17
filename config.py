@@ -29,6 +29,15 @@ ADMIN_ROLE_IDS = [
 # Tempo máximo (segundos) que o bot aguarda cada resposta antes de expirar o ticket.
 STEP_TIMEOUT = int(os.getenv("STEP_TIMEOUT", "1800"))  # 30 min
 
+# ---- Google Drive (opcional) ----------------------------------------------
+# Se GDRIVE_ENABLED=true, cada PDF também é enviado para o Google Drive,
+# recriando a mesma hierarquia de pastas dentro da pasta raiz indicada.
+GDRIVE_ENABLED = os.getenv("GDRIVE_ENABLED", "false").lower() == "true"
+# Caminho para a chave JSON da conta de serviço.
+GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS", "service_account.json")
+# ID da pasta do Drive onde tudo será salvo (o trecho após /folders/ na URL).
+GDRIVE_ROOT_FOLDER_ID = os.getenv("GDRIVE_ROOT_FOLDER_ID", "")
+
 # Meses em português para o nome da pasta (ex: "Julho 2026").
 MESES = {
     1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",

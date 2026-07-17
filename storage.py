@@ -14,13 +14,21 @@ from datetime import datetime
 from config import STORAGE_ROOT, MESES, camel
 
 
-def montar_caminho(categoria: str, subtipo: str, colaborador: str, quando: datetime):
-    """Cria (se necessário) as pastas e devolve o caminho completo do PDF."""
+def componentes_pasta(categoria: str, subtipo: str, quando: datetime):
+    """Devolve a lista ordenada de subpastas: [categoria, mês, tipo, dia].
+    Usada tanto no disco local quanto para recriar a árvore no Google Drive."""
     mes = f"{MESES[quando.month]} {quando.year}"
     dia = quando.strftime("%d")
-    pasta = os.path.join(STORAGE_ROOT, categoria, mes, subtipo, dia)
+    return [categoria, mes, subtipo, dia]
+
+
+def montar_caminho(categoria: str, subtipo: str, colaborador: str, quando: datetime):
+    """Cria (se necessário) as pastas e devolve o caminho completo do PDF."""
+    comps = componentes_pasta(categoria, subtipo, quando)
+    pasta = os.path.join(STORAGE_ROOT, *comps)
     os.makedirs(pasta, exist_ok=True)
 
+    dia = quando.strftime("%d")
     nome = f"{dia}_{quando.strftime('%H%M')}_{camel(subtipo)}_{camel(colaborador)}.pdf"
     return os.path.join(pasta, nome)
 

@@ -221,15 +221,26 @@ class TicketFlow:
         caminho = storage.montar_caminho(categoria, subtipo, self.autor.display_name, quando)
         gerar_pdf(caminho, meta=meta, respostas=self.respostas, transcricao=self.transcricao)
 
+        # Envia também para o Google Drive (se habilitado). Uma falha aqui NÃO
+        # cancela o chamado — o PDF já está salvo localmente.
+        link_drive = None
+        try:
+            import gdrive
+            comps = storage.componentes_pasta(categoria, subtipo, quando)
+            link_drive = gdrive.upload_pdf(caminho, comps)
+        except Exception as e:  # noqa
+            print("Falha ao enviar para o Google Drive:", e)
+
         import os
         nome = os.path.basename(caminho)
+        linha_drive = f"\n☁️ Google Drive: {link_drive}" if link_drive else ""
         await self.thread.send(
             f"✅ **Chamado finalizado!**\n"
             f"Colaborador: **{self.autor.display_name}**\n"
             f"Categoria: **{categoria}** • Tipo: **{subtipo}**\n"
             f"Data/Hora: **{quando.strftime('%d/%m/%Y %H:%M')}**\n"
             f"Localização: **{self.localizacao or 'não disponível'}**\n"
-            f"Arquivo: `{nome}`",
+            f"Arquivo: `{nome}`{linha_drive}",
             file=discord.File(caminho),
         )
         # Fecha a thread após alguns segundos

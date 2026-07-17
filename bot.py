@@ -135,5 +135,4 @@ async def on_ready():
 if __name__ == "__main__":
     if not config.DISCORD_TOKEN:
         raise SystemExit("Defina DISCORD_TOKEN no arquivo .env")
-    import logging
-    bot.run(config.DISCORD_TOKEN, log_level=logging.DEBUG)
+    bot.run(config.DISCORD_TOKEN)

@@ -15,7 +15,10 @@ pastas padronizada.
 - ✅ Geração de **PDF** com metadados + respostas + fotos + transcrição da conversa
 - ✅ Salvamento na hierarquia: `Categoria / Mês Ano / Tipo de Serviço / Dia / arquivo.pdf`
 - ✅ Nome do PDF: `Dia_HoraMin_TipoServico_NomeColaborador.pdf`
-- ✅ Comandos admin: `/painel`, `/listar`, `/fechar`
+- ✅ Upload do PDF também para o **Google Drive** (opcional, via conta de serviço)
+- ✅ **Logs administrativos** em canais de Staff: aviso de ticket criado/finalizado,
+  mensagens editadas/apagadas e entrada/saída de membros
+- ✅ Comandos admin: `/painel`, `/listar`, `/fechar`, `/definir_log`, `/ver_logs`
 
 ## Instalação
 
@@ -48,11 +51,53 @@ python bot.py
 - O técnico clica em **Abrir Ticket** → o bot cria uma thread privada e faz as perguntas.
 - Ao final, o PDF é enviado na thread **e** salvo na pasta `STORAGE_ROOT`.
 
+## Logs administrativos (canais de Staff)
+
+O bot envia avisos para canais de log, um por tipo de evento:
+
+| Tipo | Quando dispara | Ativo por padrão? |
+|---|---|---|
+| Tickets gerados | Ticket criado e finalizado (com resumo e link do PDF) | ✅ Sim |
+| Mensagens editadas | Alguém edita uma mensagem (mostra antes/depois) | Só com `MSG_LOGS_ENABLED=true` |
+| Mensagens deletadas | Alguém apaga uma mensagem (mostra o conteúdo) | Só com `MSG_LOGS_ENABLED=true` |
+| Entrada de membros | Membro entra no servidor | Só com `MSG_LOGS_ENABLED=true` |
+| Saída de membros | Membro sai do servidor | Só com `MSG_LOGS_ENABLED=true` |
+
+**Como apontar cada tipo para um canal:**
+
+1. **Recomendado:** entre no canal desejado e rode `/definir_log` escolhendo o tipo.
+   O bot grava o **ID** do canal em `log_config.json` — pode renomear o canal depois
+   que continua funcionando.
+2. **Automático (fallback):** sem configurar nada, o bot procura canais cujo nome
+   contenha `logs-tickets-gerados`, `logs-msg-editada`, `logs-msg-deletas`,
+   `logs-entrada` ou `logs-saida`.
+
+Use `/ver_logs` para conferir qual canal está ligado a cada tipo.
+
+> O bot precisa de *Ver Canal* e *Enviar Mensagens* em cada canal de log.
+> Para mostrar o conteúdo de mensagens apagadas/editadas, a mensagem precisa
+> ter sido enviada enquanto o bot estava online (limitação do Discord).
+
 ## Onde os arquivos são salvos
 
 Definido por `STORAGE_ROOT` no `.env`:
 - **Servidor físico:** aponte para um ponto de montagem de rede (ex: `/mnt/servidor/chamados`).
 - **Google Drive / nuvem:** aponte para uma pasta sincronizada pelo *Google Drive para Desktop* ou por *rclone*.
+
+### Upload direto para o Google Drive (opcional)
+
+Além do salvamento local, cada PDF pode ser enviado direto para o Drive via
+conta de serviço, recriando a mesma hierarquia de pastas. No `.env`:
+
+```ini
+GDRIVE_ENABLED=true
+GDRIVE_CREDENTIALS=service_account.json   # chave JSON da conta de serviço
+GDRIVE_ROOT_FOLDER_ID=xxxxxxxx            # trecho após /folders/ na URL da pasta
+```
+
+A pasta do Drive precisa estar **compartilhada com o e-mail da conta de serviço**
+(permissão de Editor). Uma falha no upload não cancela o chamado — o PDF já fica
+salvo localmente e o erro aparece no log do bot.
 
 ## Deploy 24/7
 

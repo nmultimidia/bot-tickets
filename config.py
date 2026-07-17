@@ -38,6 +38,13 @@ GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS", "service_account.json")
 # ID da pasta do Drive onde tudo será salvo (o trecho após /folders/ na URL).
 GDRIVE_ROOT_FOLDER_ID = os.getenv("GDRIVE_ROOT_FOLDER_ID", "")
 
+# ---- Canal Staff (opcional) ----------------------------------------------
+# Canal que recebe um aviso a cada ticket criado/finalizado.
+STAFF_CHANNEL_ID = int(os.getenv("STAFF_CHANNEL_ID", "0") or "0")
+
+# Se true, mensagens editadas/apagadas no servidor são registradas no canal staff.
+MSG_LOGS_ENABLED = os.getenv("MSG_LOGS_ENABLED", "false").lower() == "true"
+
 # Meses em português para o nome da pasta (ex: "Julho 2026").
 MESES = {
     1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",

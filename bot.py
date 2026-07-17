@@ -50,8 +50,30 @@ class PainelView(discord.ui.View):
         await interaction.followup.send(
             f"Seu ticket foi criado: {thread.mention}", ephemeral=True)
 
+        await avisar_staff(
+            titulo="🎫 Novo ticket criado",
+            descricao=(f"Colaborador: {interaction.user.mention}\n"
+                       f"Thread: {thread.mention}"),
+            cor=0x3498db,
+        )
+
         flow = TicketFlow(bot, thread, interaction.user)
         bot.loop.create_task(flow.run())
+
+
+async def avisar_staff(titulo: str, descricao: str, cor: int = 0x95a5a6):
+    """Envia um embed para o canal de staff, se configurado."""
+    if not config.STAFF_CHANNEL_ID:
+        return
+    canal = bot.get_channel(config.STAFF_CHANNEL_ID)
+    if canal is None:
+        return
+    embed = discord.Embed(title=titulo, description=descricao, color=cor)
+    embed.timestamp = discord.utils.utcnow()
+    try:
+        await canal.send(embed=embed)
+    except discord.HTTPException as e:
+        print("Falha ao avisar canal staff:", e)
 
 
 # --------------------------------------------------------------------------
@@ -107,6 +129,47 @@ async def fechar(interaction: discord.Interaction):
         return
     await interaction.response.send_message("Fechando o ticket...", ephemeral=True)
     await interaction.channel.edit(archived=True, locked=True)
+
+
+# --------------------------------------------------------------------------
+# Logs de mensagens editadas/apagadas (opcional — MSG_LOGS_ENABLED=true)
+# --------------------------------------------------------------------------
+def _resumo(texto: str, limite: int = 1000) -> str:
+    texto = texto or "*(sem texto — possivelmente apenas anexo/embed)*"
+    return texto if len(texto) <= limite else texto[:limite] + "…"
+
+
+@bot.event
+async def on_message_delete(message: discord.Message):
+    if not config.MSG_LOGS_ENABLED or message.author.bot or message.guild is None:
+        return
+    if message.channel.id == config.STAFF_CHANNEL_ID:
+        return  # evita loop de logs sobre o próprio canal
+    await avisar_staff(
+        titulo="🗑️ Mensagem apagada",
+        descricao=(f"Autor: {message.author.mention}\n"
+                   f"Canal: {message.channel.mention}\n\n"
+                   f"**Conteúdo:**\n{_resumo(message.content)}"),
+        cor=0xe74c3c,
+    )
+
+
+@bot.event
+async def on_message_edit(antes: discord.Message, depois: discord.Message):
+    if not config.MSG_LOGS_ENABLED or antes.author.bot or antes.guild is None:
+        return
+    if antes.content == depois.content:
+        return  # edições de embed/pin, sem mudança de texto
+    if antes.channel.id == config.STAFF_CHANNEL_ID:
+        return
+    await avisar_staff(
+        titulo="✏️ Mensagem editada",
+        descricao=(f"Autor: {antes.author.mention}\n"
+                   f"Canal: {antes.channel.mention} — [ir para a mensagem]({depois.jump_url})\n\n"
+                   f"**Antes:**\n{_resumo(antes.content, 500)}\n\n"
+                   f"**Depois:**\n{_resumo(depois.content, 500)}"),
+        cor=0xf39c12,
+    )
 
 
 # --------------------------------------------------------------------------

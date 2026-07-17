@@ -5,3 +5,4 @@ venv/
 service_account.json
 chamados/
 .claude/scheduled_tasks.lock
+log_config.json

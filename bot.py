@@ -10,6 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 import config
+import logs as logmod
 from ticket import TicketFlow
 import storage
 
@@ -50,30 +51,17 @@ class PainelView(discord.ui.View):
         await interaction.followup.send(
             f"Seu ticket foi criado: {thread.mention}", ephemeral=True)
 
-        await avisar_staff(
-            titulo="🎫 Novo ticket criado",
-            descricao=(f"Colaborador: {interaction.user.mention}\n"
-                       f"Thread: {thread.mention}"),
-            cor=0x3498db,
+        embed = discord.Embed(
+            title="🎫 Novo ticket criado",
+            description=(f"Colaborador: {interaction.user.mention}\n"
+                         f"Thread: {thread.mention}"),
+            color=0x3498db,
         )
+        embed.timestamp = discord.utils.utcnow()
+        await logmod.enviar(interaction.guild, "ticket", embed)
 
         flow = TicketFlow(bot, thread, interaction.user)
         bot.loop.create_task(flow.run())
-
-
-async def avisar_staff(titulo: str, descricao: str, cor: int = 0x95a5a6):
-    """Envia um embed para o canal de staff, se configurado."""
-    if not config.STAFF_CHANNEL_ID:
-        return
-    canal = bot.get_channel(config.STAFF_CHANNEL_ID)
-    if canal is None:
-        return
-    embed = discord.Embed(title=titulo, description=descricao, color=cor)
-    embed.timestamp = discord.utils.utcnow()
-    try:
-        await canal.send(embed=embed)
-    except discord.HTTPException as e:
-        print("Falha ao avisar canal staff:", e)
 
 
 # --------------------------------------------------------------------------
@@ -132,26 +120,70 @@ async def fechar(interaction: discord.Interaction):
 
 
 # --------------------------------------------------------------------------
-# Logs de mensagens editadas/apagadas (opcional — MSG_LOGS_ENABLED=true)
+# Configuração dos canais de log (/definir_log, /ver_logs)
+# --------------------------------------------------------------------------
+_TIPO_CHOICES = [
+    app_commands.Choice(name=rotulo, value=tipo)
+    for tipo, (rotulo, _slug) in logmod.LOG_TIPOS.items()
+]
+
+
+@bot.tree.command(description="Define ESTE canal como destino de um tipo de log.")
+@app_commands.describe(tipo="Qual tipo de log deve cair neste canal")
+@app_commands.choices(tipo=_TIPO_CHOICES)
+async def definir_log(interaction: discord.Interaction, tipo: app_commands.Choice[str]):
+    if not eh_admin(interaction):
+        await interaction.response.send_message("Sem permissão.", ephemeral=True)
+        return
+    logmod.definir(interaction.guild_id, tipo.value, interaction.channel_id)
+    await interaction.response.send_message(
+        f"✅ Logs de **{tipo.name}** agora vão para {interaction.channel.mention}.",
+        ephemeral=True)
+
+
+@bot.tree.command(description="Mostra qual canal recebe cada tipo de log.")
+async def ver_logs(interaction: discord.Interaction):
+    if not eh_admin(interaction):
+        await interaction.response.send_message("Sem permissão.", ephemeral=True)
+        return
+    linhas = logmod.configuracao_atual(interaction.guild)
+    await interaction.response.send_message(
+        "\n".join(f"• **{r}**: {c}" for r, c in linhas), ephemeral=True)
+
+
+# --------------------------------------------------------------------------
+# Logs de mensagens e membros (opcional — MSG_LOGS_ENABLED=true)
 # --------------------------------------------------------------------------
 def _resumo(texto: str, limite: int = 1000) -> str:
     texto = texto or "*(sem texto — possivelmente apenas anexo/embed)*"
     return texto if len(texto) <= limite else texto[:limite] + "…"
 
 
+def _eh_canal_de_log(channel) -> bool:
+    """Evita registrar eventos ocorridos nos próprios canais de log."""
+    return any(logmod.canal_de_log(channel.guild, t) == channel
+               for t in logmod.LOG_TIPOS)
+
+
 @bot.event
 async def on_message_delete(message: discord.Message):
     if not config.MSG_LOGS_ENABLED or message.author.bot or message.guild is None:
         return
-    if message.channel.id == config.STAFF_CHANNEL_ID:
-        return  # evita loop de logs sobre o próprio canal
-    await avisar_staff(
-        titulo="🗑️ Mensagem apagada",
-        descricao=(f"Autor: {message.author.mention}\n"
-                   f"Canal: {message.channel.mention}\n\n"
-                   f"**Conteúdo:**\n{_resumo(message.content)}"),
-        cor=0xe74c3c,
+    if _eh_canal_de_log(message.channel):
+        return
+    embed = discord.Embed(
+        title="🗑️ Mensagem apagada",
+        description=(f"Autor: {message.author.mention}\n"
+                     f"Canal: {message.channel.mention}\n\n"
+                     f"**Conteúdo:**\n{_resumo(message.content)}"),
+        color=0xe74c3c,
     )
+    if message.attachments:
+        embed.add_field(
+            name="Anexos",
+            value="\n".join(a.filename for a in message.attachments[:10]))
+    embed.timestamp = discord.utils.utcnow()
+    await logmod.enviar(message.guild, "msg_deletada", embed)
 
 
 @bot.event
@@ -160,16 +192,49 @@ async def on_message_edit(antes: discord.Message, depois: discord.Message):
         return
     if antes.content == depois.content:
         return  # edições de embed/pin, sem mudança de texto
-    if antes.channel.id == config.STAFF_CHANNEL_ID:
+    if _eh_canal_de_log(antes.channel):
         return
-    await avisar_staff(
-        titulo="✏️ Mensagem editada",
-        descricao=(f"Autor: {antes.author.mention}\n"
-                   f"Canal: {antes.channel.mention} — [ir para a mensagem]({depois.jump_url})\n\n"
-                   f"**Antes:**\n{_resumo(antes.content, 500)}\n\n"
-                   f"**Depois:**\n{_resumo(depois.content, 500)}"),
-        cor=0xf39c12,
+    embed = discord.Embed(
+        title="✏️ Mensagem editada",
+        description=(f"Autor: {antes.author.mention}\n"
+                     f"Canal: {antes.channel.mention} — "
+                     f"[ir para a mensagem]({depois.jump_url})\n\n"
+                     f"**Antes:**\n{_resumo(antes.content, 500)}\n\n"
+                     f"**Depois:**\n{_resumo(depois.content, 500)}"),
+        color=0xf39c12,
     )
+    embed.timestamp = discord.utils.utcnow()
+    await logmod.enviar(antes.guild, "msg_editada", embed)
+
+
+@bot.event
+async def on_member_join(member: discord.Member):
+    if not config.MSG_LOGS_ENABLED:
+        return
+    embed = discord.Embed(
+        title="📥 Membro entrou",
+        description=(f"{member.mention} (`{member}`)\n"
+                     f"Conta criada em: "
+                     f"{member.created_at.strftime('%d/%m/%Y %H:%M')}"),
+        color=0x2ecc71,
+    )
+    embed.set_thumbnail(url=member.display_avatar.url)
+    embed.timestamp = discord.utils.utcnow()
+    await logmod.enviar(member.guild, "entrada", embed)
+
+
+@bot.event
+async def on_member_remove(member: discord.Member):
+    if not config.MSG_LOGS_ENABLED:
+        return
+    embed = discord.Embed(
+        title="📤 Membro saiu",
+        description=f"{member.mention} (`{member}`)",
+        color=0x95a5a6,
+    )
+    embed.set_thumbnail(url=member.display_avatar.url)
+    embed.timestamp = discord.utils.utcnow()
+    await logmod.enviar(member.guild, "saida", embed)
 
 
 # --------------------------------------------------------------------------

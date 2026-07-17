@@ -10,6 +10,7 @@ import discord
 import flow
 import storage
 import config
+import logs
 from config import STEP_TIMEOUT
 from pdf_generator import gerar_pdf, extrair_localizacao
 
@@ -244,24 +245,18 @@ class TicketFlow:
             f"Arquivo: `{nome}`{linha_drive}",
             file=discord.File(caminho),
         )
-        # Aviso no canal staff (se configurado)
-        if config.STAFF_CHANNEL_ID:
-            canal_staff = self.bot.get_channel(config.STAFF_CHANNEL_ID)
-            if canal_staff:
-                embed = discord.Embed(
-                    title="✅ Ticket finalizado",
-                    description=(f"Colaborador: {self.autor.mention}\n"
-                                 f"Categoria: **{categoria}** • Tipo: **{subtipo}**\n"
-                                 f"Data/Hora: **{quando.strftime('%d/%m/%Y %H:%M')}**\n"
-                                 f"Arquivo: `{nome}`"
-                                 + (f"\n☁️ [Google Drive]({link_drive})" if link_drive else "")),
-                    color=0x2ecc71,
-                )
-                embed.timestamp = discord.utils.utcnow()
-                try:
-                    await canal_staff.send(embed=embed)
-                except discord.HTTPException as e:
-                    print("Falha ao avisar canal staff:", e)
+        # Aviso no canal de log de tickets (definido via /definir_log)
+        embed = discord.Embed(
+            title="✅ Ticket finalizado",
+            description=(f"Colaborador: {self.autor.mention}\n"
+                         f"Categoria: **{categoria}** • Tipo: **{subtipo}**\n"
+                         f"Data/Hora: **{quando.strftime('%d/%m/%Y %H:%M')}**\n"
+                         f"Arquivo: `{nome}`"
+                         + (f"\n☁️ [Google Drive]({link_drive})" if link_drive else "")),
+            color=0x2ecc71,
+        )
+        embed.timestamp = discord.utils.utcnow()
+        await logs.enviar(self.thread.guild, "ticket", embed)
 
         # Fecha a thread após alguns segundos
         await asyncio.sleep(2)

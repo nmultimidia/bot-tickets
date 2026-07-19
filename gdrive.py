@@ -15,6 +15,7 @@ Setup resumido (detalhes na resposta):
 import os
 
 from config import GDRIVE_ENABLED, GDRIVE_CREDENTIALS, GDRIVE_ROOT_FOLDER_ID
+from config import GDRIVE_AUTH, GDRIVE_OAUTH_TOKEN
 
 _service = None
 _folder_cache = {}          # evita recriar/reprocurar pastas a cada chamado
@@ -22,13 +23,41 @@ _folder_cache = {}          # evita recriar/reprocurar pastas a cada chamado
 _SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
+def _oauth_creds():
+    """Credenciais OAuth (grava como o usuário que autorizou). Usa token.json."""
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+
+    if not os.path.exists(GDRIVE_OAUTH_TOKEN):
+        raise RuntimeError(
+            f"'{GDRIVE_OAUTH_TOKEN}' não encontrado. Rode authorize_drive.py uma vez."
+        )
+
+    creds = Credentials.from_authorized_user_file(GDRIVE_OAUTH_TOKEN, _SCOPES)
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            with open(GDRIVE_OAUTH_TOKEN, "w") as f:
+                f.write(creds.to_json())
+        else:
+            raise RuntimeError(
+                "token.json inválido/expirado. Rode authorize_drive.py de novo."
+            )
+    return creds
+
+
 def _get_service():
     global _service
     if _service is None:
-        from google.oauth2 import service_account
         from googleapiclient.discovery import build
-        creds = service_account.Credentials.from_service_account_file(
-            GDRIVE_CREDENTIALS, scopes=_SCOPES)
+
+        if GDRIVE_AUTH == "oauth":
+            creds = _oauth_creds()
+        else:
+            from google.oauth2 import service_account
+            creds = service_account.Credentials.from_service_account_file(
+                GDRIVE_CREDENTIALS, scopes=_SCOPES)
+
         _service = build("drive", "v3", credentials=creds, cache_discovery=False)
     return _service
 

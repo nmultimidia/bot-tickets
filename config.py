@@ -38,6 +38,13 @@ GDRIVE_CREDENTIALS = os.getenv("GDRIVE_CREDENTIALS", "service_account.json")
 # ID da pasta do Drive onde tudo será salvo (o trecho após /folders/ na URL).
 GDRIVE_ROOT_FOLDER_ID = os.getenv("GDRIVE_ROOT_FOLDER_ID", "")
 
+# Autenticação do Drive: "oauth" (grava como você/cliente — funciona em Gmail
+# pessoal, gravando na pasta indicada) ou "service_account".
+GDRIVE_AUTH = os.getenv("GDRIVE_AUTH", "service_account")
+# Modo OAuth: token gerado uma vez pelo authorize_drive.py.
+GDRIVE_OAUTH_TOKEN = os.getenv("GDRIVE_OAUTH_TOKEN", "token.json")
+GDRIVE_CLIENT_SECRET = os.getenv("GDRIVE_CLIENT_SECRET", "client_secret.json")
+
 # ---- Logs administrativos --------------------------------------------------
 # Os canais de destino são definidos com /definir_log (ou por nome — ver logs.py).
 # Se true, ativa os logs de mensagens editadas/apagadas e entrada/saída de membros.

@@ -7,8 +7,9 @@ Gera token.json (com o refresh token). Escopo 'drive' completo -> permite
 gravar dentro de uma pasta já existente (a que o cliente definiu).
 
 Pré-requisitos:
-  - client_secret.json na mesma pasta (Google Cloud > Credenciais >
-    ID do cliente OAuth > Tipo: App para computador).
+  - client_secret.json no diretório do projeto ou apontado pela variável
+    GDRIVE_CLIENT_SECRET (Google Cloud > Credenciais > ID do cliente OAuth >
+    Tipo: App para computador).
   - pip install google-auth-oauthlib
 
 Num VPS sem navegador, use um túnel SSH:
@@ -18,17 +19,44 @@ Num VPS sem navegador, use um túnel SSH:
      (Se aparecer "app não verificado": Avançado > Acessar (não seguro).)
   4. token.json é criado no VPS. Pronto.
 """
+import os
+from pathlib import Path
+
 from google_auth_oauthlib.flow import InstalledAppFlow
 
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
-flow = InstalledAppFlow.from_client_secrets_file("client_secret.json", SCOPES)
-creds = flow.run_local_server(
-    port=8080,
-    open_browser=False,
-    authorization_prompt_message="Abra este link no navegador do PC:\n\n{url}\n",
-    success_message="Autorização concluída! Pode fechar esta aba.",
-)
-with open("token.json", "w") as f:
-    f.write(creds.to_json())
-print("\ntoken.json gerado. O bot já pode gravar no Drive dessa conta.")
+
+def resolve_client_secret_path():
+    configured = os.getenv("GDRIVE_CLIENT_SECRET", "client_secret.json")
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        path = (Path(__file__).resolve().parent / path).resolve()
+    return str(path)
+
+
+def main():
+    client_secret_path = resolve_client_secret_path()
+    if not os.path.exists(client_secret_path):
+        raise FileNotFoundError(
+            f"Arquivo de credenciais não encontrado em: {client_secret_path}. "
+            "Baixe o client_secret.json do Google Cloud e defina GDRIVE_CLIENT_SECRET "
+            "ou coloque o arquivo na pasta do projeto."
+        )
+
+    flow = InstalledAppFlow.from_client_secrets_file(client_secret_path, SCOPES)
+    creds = flow.run_local_server(
+        port=8080,
+        open_browser=False,
+        authorization_prompt_message="Abra este link no navegador do PC:\n\n{url}\n",
+        success_message="Autorização concluída! Pode fechar esta aba.",
+    )
+
+    with open("token.json", "w") as f:
+        f.write(creds.to_json())
+
+    print("\ntoken.json gerado. O bot já pode gravar no Drive dessa conta.")
+
+
+if __name__ == "__main__":
+    main()

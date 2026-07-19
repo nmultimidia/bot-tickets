@@ -35,6 +35,14 @@ def resolve_client_secret_path():
     return str(path)
 
 
+def resolve_token_path():
+    configured = os.getenv("GDRIVE_OAUTH_TOKEN", "token.json")
+    path = Path(configured).expanduser()
+    if not path.is_absolute():
+        path = (Path(__file__).resolve().parent / path).resolve()
+    return str(path)
+
+
 def main():
     client_secret_path = resolve_client_secret_path()
     if not os.path.exists(client_secret_path):
@@ -52,10 +60,11 @@ def main():
         success_message="Autorização concluída! Pode fechar esta aba.",
     )
 
-    with open("token.json", "w") as f:
+    token_path = resolve_token_path()
+    with open(token_path, "w") as f:
         f.write(creds.to_json())
 
-    print("\ntoken.json gerado. O bot já pode gravar no Drive dessa conta.")
+    print(f"\n{token_path} gerado. O bot já pode gravar no Drive dessa conta.")
 
 
 if __name__ == "__main__":

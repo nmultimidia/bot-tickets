@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 venv/
 service_account.json
+client_secret.json
+token.json
 chamados/
 .claude/scheduled_tasks.lock
 log_config.json

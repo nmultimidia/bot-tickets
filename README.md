@@ -50,6 +50,7 @@ python bot.py
 - Rode `/painel` no canal onde os técnicos vão abrir chamados.
 - O técnico clica em **Abrir Ticket** → o bot cria uma thread privada e faz as perguntas.
 - Ao final, o PDF é enviado na thread **e** salvo na pasta `STORAGE_ROOT`.
+- `/limpar [dias]` apaga as threads de ticket já arquivadas (pede confirmação); use `dias` para só apagar as mais antigas.
 
 ## Logs administrativos (canais de Staff)
 

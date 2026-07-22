@@ -3,8 +3,10 @@ Ponto de entrada do bot.
 
 - Posta um painel com o botão "Abrir Ticket" (comando /painel ou canal fixo).
 - Ao clicar, cria uma thread privada e inicia o fluxo de perguntas.
-- Comandos administrativos: /painel, /listar, /fechar.
+- Comandos administrativos: /painel, /listar, /fechar, /limpar.
 """
+from datetime import timedelta
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -117,6 +119,112 @@ async def fechar(interaction: discord.Interaction):
         return
     await interaction.response.send_message("Fechando o ticket...", ephemeral=True)
     await interaction.channel.edit(archived=True, locked=True)
+
+
+def _eh_thread_ticket(thread: discord.Thread) -> bool:
+    return thread.name.startswith("ticket-")
+
+
+async def _threads_arquivadas_de(canal: discord.TextChannel):
+    """Junta as threads privadas e públicas arquivadas de um canal."""
+    try:
+        async for thread in canal.archived_threads(private=True, limit=None):
+            yield thread
+    except discord.Forbidden:
+        pass
+    async for thread in canal.archived_threads(private=False, limit=None):
+        yield thread
+
+
+class ConfirmarLimpeza(discord.ui.View):
+    """Confirmação obrigatória: apagar a thread é irreversível."""
+
+    def __init__(self, threads, autor_id: int):
+        super().__init__(timeout=60)
+        self.threads = threads
+        self.autor_id = autor_id
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.autor_id:
+            await interaction.response.send_message(
+                "Só quem executou o comando pode confirmar.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Apagar", emoji="🗑️",
+                       style=discord.ButtonStyle.danger)
+    async def confirmar(self, interaction: discord.Interaction, _b):
+        for item in self.children:
+            item.disabled = True
+        await interaction.response.edit_message(
+            content=f"Apagando {len(self.threads)} ticket(s) arquivado(s)...",
+            view=self)
+
+        apagados, erros = 0, 0
+        for thread in self.threads:
+            try:
+                await thread.delete()
+                apagados += 1
+            except discord.HTTPException:
+                erros += 1
+
+        texto = f"✅ {apagados} ticket(s) arquivado(s) apagado(s)."
+        if erros:
+            texto += f" {erros} não pude apagar (verifique minhas permissões)."
+        await interaction.edit_original_response(content=texto, view=None)
+        self.stop()
+
+    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.secondary)
+    async def cancelar(self, interaction: discord.Interaction, _b):
+        for item in self.children:
+            item.disabled = True
+        await interaction.response.edit_message(
+            content="Cancelado. Nenhum ticket foi apagado.", view=self)
+        self.stop()
+
+
+@bot.tree.command(
+    description="Apaga os tickets já arquivados (fechados). Pede confirmação.")
+@app_commands.describe(
+    dias="Apagar só os arquivados há mais de X dias (0 = todos)")
+async def limpar(interaction: discord.Interaction, dias: int = 0):
+    if not eh_admin(interaction):
+        await interaction.response.send_message("Sem permissão.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    limite = None
+    if dias > 0:
+        limite = discord.utils.utcnow() - timedelta(days=dias)
+
+    alvos = []
+    for canal in interaction.guild.text_channels:
+        async for thread in _threads_arquivadas_de(canal):
+            if not _eh_thread_ticket(thread):
+                continue
+            if limite and thread.archive_timestamp and thread.archive_timestamp > limite:
+                continue
+            alvos.append(thread)
+
+    if not alvos:
+        recorte = f" com mais de {dias} dia(s)" if dias else ""
+        await interaction.followup.send(
+            f"Nenhum ticket arquivado{recorte} para apagar.", ephemeral=True)
+        return
+
+    amostra = "\n".join(f"• {t.name}" for t in alvos[:10])
+    if len(alvos) > 10:
+        amostra += f"\n• ... e mais {len(alvos) - 10}"
+    recorte = f" sem movimento há mais de {dias} dia(s)" if dias else ""
+
+    await interaction.followup.send(
+        f"⚠️ Vou apagar **{len(alvos)} ticket(s) arquivado(s)**{recorte}.\n"
+        "As threads e todo o histórico da conversa serão **apagados de vez** "
+        "(os PDFs já salvos continuam intactos).\n\n"
+        f"{amostra}\n\nConfirma?",
+        view=ConfirmarLimpeza(alvos, interaction.user.id),
+        ephemeral=True)
 
 
 # --------------------------------------------------------------------------

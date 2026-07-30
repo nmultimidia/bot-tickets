@@ -21,7 +21,6 @@ remover as linhas marcadas com  # [confirmar com o cliente].
 
 # Etapas reutilizáveis -------------------------------------------------------
 
-_OS_NUMERO = {"type": "text", "label": "Número/identificação da OS"}  # [confirmar com o cliente]
 _CONCLUIDO = {"type": "yesno", "label": "Serviço concluído?"}
 
 _VMMT_FOTOS = [
@@ -37,19 +36,16 @@ _VMMT_FOTOS = [
 FLOW = {
     "Abertura de OS - UFMT": {
         "OS Instalação": [
-            _OS_NUMERO,  # [confirmar com o cliente]
             {"type": "text",  "label": "Material utilizado"},
             {"type": "photo", "label": "Fotos do local de instalação", "multiple": True},
             _CONCLUIDO,
         ],
         "OS Manutenção": [
-            _OS_NUMERO,  # [confirmar com o cliente]
             {"type": "text",  "label": "Material utilizado"},
             {"type": "photo", "label": "Fotos do local de instalação", "multiple": True},
             _CONCLUIDO,
         ],
         "OS Remoção": [
-            _OS_NUMERO,  # [confirmar com o cliente]
             {"type": "photo", "label": "Fotos do local de instalação", "multiple": True},
             _CONCLUIDO,
         ],
@@ -61,10 +57,9 @@ FLOW = {
     },
 
     "Abertura de OS - VMMT": {
-        "OS Instalação": [_OS_NUMERO, *_VMMT_FOTOS, _CONCLUIDO],   # [confirmar com o cliente]
-        "OS Manutenção": [_OS_NUMERO, *_VMMT_FOTOS, _CONCLUIDO],   # [confirmar com o cliente]
+        "OS Instalação": [*_VMMT_FOTOS, _CONCLUIDO],
+        "OS Manutenção": [*_VMMT_FOTOS, _CONCLUIDO],
         "OS Remoção": [
-            _OS_NUMERO,  # [confirmar com o cliente]
             {"type": "photo", "label": "Fotos do local de instalação", "multiple": True},
             _CONCLUIDO,
         ],

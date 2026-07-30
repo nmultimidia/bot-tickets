@@ -252,7 +252,7 @@ class TicketFlow:
                          f"Categoria: **{categoria}** • Tipo: **{subtipo}**\n"
                          f"Data/Hora: **{quando.strftime('%d/%m/%Y %H:%M')}**\n"
                          f"Arquivo: `{nome}`"
-                         + (f"\n☁️ [Google Drive]({link_drive})" if link_drive else "")),
+                         + (f"\n☁️ Google Drive: {link_drive}" if link_drive else "")),
             color=0x2ecc71,
         )
         embed.timestamp = discord.utils.utcnow()

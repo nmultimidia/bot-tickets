@@ -118,4 +118,5 @@ def upload_pdf(caminho_local, subpastas):
         body=meta, media_body=media, fields="id, webViewLink",
         supportsAllDrives=True,
     ).execute()
-    return arquivo.get("webViewLink")
+    return (arquivo.get("webViewLink")
+            or f"https://drive.google.com/file/d/{arquivo['id']}/view")

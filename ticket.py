@@ -251,10 +251,15 @@ class TicketFlow:
             description=(f"Colaborador: {self.autor.mention}\n"
                          f"Categoria: **{categoria}** • Tipo: **{subtipo}**\n"
                          f"Data/Hora: **{quando.strftime('%d/%m/%Y %H:%M')}**\n"
-                         f"Arquivo: `{nome}`"
-                         + (f"\n☁️ Google Drive: {link_drive}" if link_drive else "")),
+                         f"Arquivo: `{nome}`"),
             color=0x2ecc71,
         )
+        if link_drive:
+            embed.add_field(
+                name="☁️ Google Drive",
+                value=f"[Abrir PDF no Google Drive]({link_drive})",
+                inline=False,
+            )
         embed.timestamp = discord.utils.utcnow()
         await logs.enviar(self.thread.guild, "ticket", embed)
 

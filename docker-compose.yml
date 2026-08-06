@@ -1,0 +1,20 @@
+services:
+  bot-infinity:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bot-tickets-infinity
+    restart: unless-stopped
+    # As variáveis (DISCORD_TOKEN, GDRIVE_*, etc) são coladas na aba
+    # "Environment Variables" do Coolify, não vêm de um arquivo .env —
+    # o .env não existe no repositório (está no .gitignore de propósito).
+    volumes:
+      # Caminhos ABSOLUTOS do VPS: aponta direto para os arquivos que já
+      # existem nesta pasta hoje. Nada é copiado, nada é recriado — o
+      # Coolify usa exatamente os mesmos arquivos de sempre. Eles nunca
+      # entram no Git nem na imagem Docker (ficam de fora via .dockerignore).
+      - /root/Bots/bot-tickets-infinity/chamados:/app/chamados
+      - /root/Bots/bot-tickets-infinity/token.json:/app/token.json
+      - /root/Bots/bot-tickets-infinity/service_account.json:/app/service_account.json
+      - /root/Bots/bot-tickets-infinity/client_secret.json:/app/client_secret.json
+      - /root/Bots/bot-tickets-infinity/log_config.json:/app/log_config.json

@@ -29,6 +29,13 @@ ADMIN_ROLE_IDS = [
 # Tempo máximo (segundos) que o bot aguarda cada resposta antes de expirar o ticket.
 STEP_TIMEOUT = int(os.getenv("STEP_TIMEOUT", "1800"))  # 30 min
 
+# Fluxo do ticket:
+#   true  -> ticket livre (sem perguntas). O técnico envia texto/fotos à
+#            vontade e escreve "pronto" para travar. Só a administração
+#            (permissão "Gerenciar Tópicos") pode fechar/gerar o relatório.
+#   false -> fluxo antigo, com perguntas passo a passo (script do fluxograma).
+FLUXO_TICKET_LIVRE = os.getenv("FLUXO_TICKET_LIVRE", "true").lower() == "true"
+
 # ---- Google Drive (opcional) ----------------------------------------------
 # Se GDRIVE_ENABLED=true, cada PDF também é enviado para o Google Drive,
 # recriando a mesma hierarquia de pastas dentro da pasta raiz indicada.

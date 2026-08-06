@@ -69,6 +69,38 @@ class YesNoView(discord.ui.View):
         await self._responder(interaction, "Não")
 
 
+def _pode_fechar(member: discord.Member) -> bool:
+    """Só administração fecha o ticket livre: Administrator, Gerenciar
+    Tópicos, ou um dos cargos em ADMIN_ROLE_IDS."""
+    perms = getattr(member, "guild_permissions", None)
+    if perms and (perms.administrator or perms.manage_threads):
+        return True
+    ids = {r.id for r in getattr(member, "roles", [])}
+    return bool(ids & set(config.ADMIN_ROLE_IDS))
+
+
+class FecharChamadoView(discord.ui.View):
+    """Botão exclusivo da administração: gera o PDF/relatório e arquiva."""
+
+    def __init__(self, ticket_flow, categoria, subtipo):
+        super().__init__(timeout=None)
+        self.ticket_flow = ticket_flow
+        self.categoria = categoria
+        self.subtipo = subtipo
+
+    @discord.ui.button(label="Fechar e gerar relatório", style=discord.ButtonStyle.success,
+                       emoji="📋", custom_id="fechar_chamado_livre")
+    async def fechar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not _pode_fechar(interaction.user):
+            await interaction.response.send_message(
+                "Apenas a administração pode fechar este chamado.", ephemeral=True)
+            return
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        await interaction.followup.send("Gerando relatório... ⏳")
+        await self.ticket_flow._finalizar(self.categoria, self.subtipo)
+
+
 class TicketFlow:
     def __init__(self, bot, thread: discord.Thread, autor: discord.Member):
         self.bot = bot
@@ -166,6 +198,93 @@ class TicketFlow:
     # -- execução do fluxo ------------------------------------------------
 
     async def run(self):
+        if config.FLUXO_TICKET_LIVRE:
+            await self._run_livre()
+        else:
+            await self._run_com_perguntas()
+
+    async def _run_livre(self):
+        """Ticket sem perguntas: o técnico envia texto/fotos à vontade e
+        escreve 'pronto' para travar. Só a administração fecha e gera o PDF."""
+        try:
+            categoria = await self._ask_select(
+                "Qual o tipo de assunto?", flow.categorias())
+            subtipo = await self._ask_select(
+                "Qual o tipo de serviço?", flow.subtipos(categoria))
+
+            await self._bot_diz(
+                f"Pode enviar fotos, textos e informações à vontade, {self.autor.mention}. "
+                f"Quando finalizar o atendimento, escreva **pronto**.")
+
+            textos = []
+            fotos = []
+            while True:
+                msg = await self._aguardar_msg()
+                conteudo = (msg.content or "").strip()
+
+                if msg.attachments:
+                    for att in msg.attachments:
+                        if att.content_type and att.content_type.startswith("image"):
+                            fotos.append(await att.read())
+                    self.transcricao.append(
+                        (self.autor.display_name,
+                         conteudo or f"[{len(msg.attachments)} anexo(s)]"))
+                    if conteudo:
+                        textos.append(conteudo)
+                    continue
+
+                if conteudo.lower() == "pronto":
+                    self.transcricao.append((self.autor.display_name, conteudo))
+                    break
+
+                if conteudo:
+                    textos.append(conteudo)
+                    self.transcricao.append((self.autor.display_name, conteudo))
+
+            for b in fotos:
+                if self.localizacao is None:
+                    self.localizacao = extrair_localizacao(b)
+
+            self.respostas = [
+                {"label": "Registro do atendimento", "type": "text",
+                 "valor": "\n".join(textos) if textos else "—"},
+                {"label": "Fotos enviadas", "type": "photo", "imagens": fotos},
+            ]
+
+            # Trava a thread: quem não tem "Gerenciar Tópicos" não consegue
+            # mais escrever. A administração continua conseguindo agir.
+            try:
+                await self.thread.edit(locked=True)
+            except discord.HTTPException:
+                pass
+
+            await self._bot_diz(
+                "🔒 Atendimento marcado como concluído e travado. "
+                "Um administrador vai revisar e fechar o chamado.")
+
+            embed = discord.Embed(
+                title="🔒 Ticket pronto para fechamento",
+                description=(f"Colaborador: {self.autor.mention}\n"
+                             f"Categoria: **{categoria}** • Tipo: **{subtipo}**\n"
+                             f"Thread: {self.thread.mention}"),
+                color=0xf1c40f,
+            )
+            embed.timestamp = discord.utils.utcnow()
+            await logs.enviar(self.thread.guild, "ticket", embed)
+
+            view = FecharChamadoView(self, categoria, subtipo)
+            await self.thread.send(
+                "Administração: clique abaixo para gerar o relatório e arquivar.",
+                view=view)
+
+        except asyncio.TimeoutError:
+            await self.thread.send(
+                "⏱️ Tempo esgotado sem resposta. O ticket foi cancelado. "
+                "Abra um novo quando quiser.")
+        except Exception as e:  # noqa
+            await self.thread.send(f"❌ Ocorreu um erro ao processar o ticket: `{e}`")
+
+    async def _run_com_perguntas(self):
         try:
             await self._bot_diz(
                 f"Olá, {self.autor.mention}! Vou abrir seu chamado. "

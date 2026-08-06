@@ -56,9 +56,18 @@ def extrair_localizacao(image_bytes: bytes):
 # Imagens para o PDF
 # ---------------------------------------------------------------------------
 
-def _imagem_para_pdf(image_bytes: bytes, largura_max=14 * cm):
-    """Normaliza a imagem (converte p/ RGB, reduz tamanho) e devolve um RLImage."""
+def _imagem_para_pdf(image_bytes: bytes, largura_max=14 * cm, altura_max=20 * cm):
+    """Normaliza a imagem (converte p/ RGB, reduz tamanho) e devolve um RLImage.
+
+    Limita LARGURA e ALTURA: fotos em pé (retrato), típicas de celular,
+    estouravam a altura da página e quebravam a geração do PDF."""
     img = PILImage.open(io.BytesIO(image_bytes))
+    # Aplica a rotação gravada no EXIF (senão a foto sai deitada)
+    try:
+        from PIL import ImageOps
+        img = ImageOps.exif_transpose(img)
+    except Exception:
+        pass
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
     # Reduz imagens muito grandes para não estourar o PDF
@@ -70,7 +79,8 @@ def _imagem_para_pdf(image_bytes: bytes, largura_max=14 * cm):
     img.save(buf, format="JPEG", quality=80)
     buf.seek(0)
     w, h = img.size
-    escala = min(largura_max / w, 1.0)
+    # menor escala entre largura e altura -> cabe sempre na página
+    escala = min(largura_max / w, altura_max / h, 1.0)
     return RLImage(buf, width=w * escala, height=h * escala)
 
 

@@ -26,8 +26,10 @@ ADMIN_ROLE_IDS = [
     int(x) for x in os.getenv("ADMIN_ROLE_IDS", "").replace(" ", "").split(",") if x
 ]
 
-# Tempo máximo (segundos) que o bot aguarda cada resposta antes de expirar o ticket.
-STEP_TIMEOUT = int(os.getenv("STEP_TIMEOUT", "1800"))  # 30 min
+# Tempo máximo (segundos) que o bot aguarda cada resposta antes de expirar o
+# ticket. Deixe vazio ou "0" para o ticket nunca expirar por tempo.
+_step_timeout_raw = os.getenv("STEP_TIMEOUT", "1800").strip()
+STEP_TIMEOUT = int(_step_timeout_raw) if _step_timeout_raw and _step_timeout_raw != "0" else None
 
 # Fluxo do ticket:
 #   true  -> ticket livre (sem perguntas). O técnico envia texto/fotos à

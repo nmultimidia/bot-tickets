@@ -5,7 +5,9 @@ Ponto de entrada do bot.
 - Ao clicar, cria uma thread privada e inicia o fluxo de perguntas.
 - Comandos administrativos: /painel, /listar, /fechar, /limpar.
 """
-from datetime import timedelta
+import re
+import unicodedata
+from datetime import datetime, timedelta
 
 import discord
 from discord import app_commands
@@ -15,6 +17,28 @@ import config
 import logs as logmod
 from ticket import TicketFlow
 import storage
+
+
+def _slug(texto: str) -> str:
+    """Remove acentos/espaços, só letras e números, minúsculo (para nome de thread)."""
+    texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return re.sub(r"[^A-Za-z0-9]+", "", texto).lower()
+
+
+async def _convidar_staff(thread: discord.Thread, guild: discord.Guild):
+    """Adiciona à thread privada todo mundo com cargo administrativo, para que
+    a staff veja o ticket assim que ele é aberto (e não só quando é fechado)."""
+    role_ids = set(config.ADMIN_ROLE_IDS)
+    if not role_ids:
+        return
+    for membro in guild.members:
+        if membro.bot:
+            continue
+        if role_ids & {r.id for r in membro.roles}:
+            try:
+                await thread.add_user(membro)
+            except discord.HTTPException:
+                pass
 
 intents = discord.Intents.default()
 intents.message_content = True  # necessário para ler textos/anexos no fluxo
@@ -36,8 +60,11 @@ class PainelView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         canal = interaction.channel
 
-        # cria uma thread privada para o ticket
-        nome = f"ticket-{interaction.user.display_name}"[:90]
+        # cria uma thread privada para o ticket. Nome com data/hora para não
+        # colidir quando o mesmo técnico abre mais de um ticket (ex:
+        # ticket-guilherme180826_1321).
+        sufixo = datetime.now().strftime("%d%m%y_%H%M")
+        nome = f"ticket-{_slug(interaction.user.display_name)}{sufixo}"[:90]
         try:
             thread = await canal.create_thread(
                 name=nome,
@@ -45,6 +72,7 @@ class PainelView(discord.ui.View):
                 invitable=False,
             )
             await thread.add_user(interaction.user)
+            await _convidar_staff(thread, interaction.guild)
         except (discord.HTTPException, AttributeError):
             # fallback: thread pública a partir de uma mensagem
             msg = await canal.send(f"Ticket de {interaction.user.mention}")
